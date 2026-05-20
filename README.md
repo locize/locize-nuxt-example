@@ -10,17 +10,17 @@ runtime `saveMissing` to push new keys back to Locize during dev, and the
 
 Companion blog post: pending — this example ships first.
 
-Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.0.24
-(with the SSR-safe isInIframe fix + popup-survives-hydration fix) ·
+Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.1.0
+(ships a vue-i18n implementation alongside the existing i18next one) ·
 `locize-cli` 12.1 · Vue 3.5 · TypeScript 5.9.
 
 > This example uses the **Standard** Locize CDN
 > (`api.lite.locize.app` — BunnyCDN, free, the default for new projects).
 > If your project is on the **Pro** CDN (`api.locize.app`, CloudFront,
 > paid), change `locizeCdnType` in
-> [`i18n/locize.config.ts`](i18n/locize.config.ts) and the matching
-> `--cdn-type` flag in the `downloadLocales` / `syncLocales` scripts in
-> [`package.json`](package.json). See
+> [`nuxt.config.ts`](nuxt.config.ts)'s `runtimeConfig.public` and the
+> matching `--cdn-type` flag in the `downloadLocales` / `syncLocales`
+> scripts in [`package.json`](package.json). See
 > [CDN types: Standard vs. Pro](https://www.locize.com/docs/integration/cdn-types-standard-vs-pro?from=locize-nuxt-example).
 
 > Companion examples on other React-ecosystem frameworks:
@@ -37,12 +37,11 @@ Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.0.24
    project wizard asks for an **i18n format**, pick **vue-i18n** (Locize
    stores the messages in vue-i18n-native format: single-brace
    interpolation, pipe-separated plurals).
-2. Either edit
-   [`i18n/locize.config.ts`](i18n/locize.config.ts),
-   [`nuxt.config.ts`](nuxt.config.ts)'s `runtimeConfig.public`, and the
-   `downloadLocales` / `syncLocales` scripts in
-   [`package.json`](package.json) with your project id + api key, or
-   keep the shipped demo-project credentials to try it out first.
+2. Either edit the `runtimeConfig.public.locize*` values in
+   [`nuxt.config.ts`](nuxt.config.ts) and the `--project-id` / `--api-key`
+   flags in the `downloadLocales` / `syncLocales` scripts in
+   [`package.json`](package.json) with your own project id + api key,
+   or keep the shipped demo-project credentials to try it out first.
 3. Pre-bundle the translations: `npm run downloadLocales` — pulls the
    latest published JSON from Locize into `i18n/locales/{en,de}/*.json`.
    The committed JSON files act as sane defaults so the example builds
@@ -79,68 +78,91 @@ assembles the per-namespace JSON imports under the namespace name.
 
 ### Run time — `saveMissing` from client to Locize
 
-[`app/plugins/locize.client.ts`](app/plugins/locize.client.ts) registers
-a `missing` handler on the vue-i18n composer. When `t('any.unknown.key')`
-is referenced and the key doesn't exist in the loaded JSON, the handler
-POSTs to `https://api.lite.locize.app/missing/<projectId>/<version>/<lng>/<ns>`
+[`i18n/i18n.config.ts`](i18n/i18n.config.ts) registers a `missing` handler
+on the vue-i18n global composer at vue-i18n init time. When
+`t('any.unknown.key')` is referenced and the key doesn't exist in the
+loaded JSON, the handler POSTs to
+`https://api.lite.locize.app/missing/<projectId>/<version>/<lng>/<ns>`
 with the dev-only apiKey, so the key appears in the Locize UI immediately.
-**Only runs on the client and only in dev** (`import.meta.dev`). Production
-builds with an empty `NUXT_PUBLIC_LOCIZE_API_KEY` no-op.
+**Only runs on the client and only when the runtime flag is set by
+[`app/plugins/locize.client.ts`](app/plugins/locize.client.ts)** —
+which gates it on `import.meta.dev && !!apiKey`. Production builds with
+an empty `NUXT_PUBLIC_LOCIZE_API_KEY` no-op.
 
 ### Run time — InContext editor (`?incontext=true`)
 
-The same plugin starts the
-[`locize`](https://github.com/locize/locize) InContext editor when the URL
-contains `?incontext=true` (or when the page itself is being rendered
-inside the Locize editor iframe). The editor pops up in the
-bottom-right corner; translators click on any string in the page to open
-the key in the editor.
+The plugin starts the [`locize`](https://github.com/locize/locize)
+InContext editor when the URL contains `?incontext=true` (or when the
+page itself is being rendered inside the Locize editor iframe). The
+editor pops up in the bottom-right corner; translators click on any
+string in the page to open the key in the editor.
 
-Since the `locize` package ships an i18next implementation but not a
-vue-i18n one, the plugin defines a **custom vue-i18n implementation**
-inline (mirrors `src/implementations/i18nextImplementation.js` from the
-locize package, ported to vue-i18n's composer API:
-`getLocaleMessage` / `mergeLocaleMessage` / `setLocaleMessage` instead
-of i18next's resource APIs) and feeds it to the locize package's
-`startStandalone()` entry point.
+The `locize` package ships
+[`getVueI18nImplementation`](https://github.com/locize/locize/blob/master/src/implementations/vueI18nImplementation.js)
+alongside the existing i18next adapter (since 4.1.0), so the plugin
+hands it the vue-i18n composer + project details and passes the
+resulting `Implementation` to `startStandalone({ implementation })`.
+Vue's `watch` is supplied as an option so the editor can observe locale
+switches — locize itself stays free of a `vue` peer dep.
 
-vue-i18n's `postTranslation` hook is wired to wrap each translation
+vue-i18n's `postTranslation` hook is wired in
+[`i18n/i18n.config.ts`](i18n/i18n.config.ts) to wrap each translation
 output with the
 [`i18next-subliminal`](https://github.com/locize/i18next-subliminal)
 invisible-marker post-processor (re-exported from the locize package as
 `wrap()`), so the editor can identify which key a clicked DOM string
-came from. Wrapping happens client-side only — the marker hint isn't
-visible to the SSR pass, so when `?incontext=true` is set you'll see
-**`[Vue warn] Hydration text content mismatch`** entries in the dev
-console for every translated string. Vue's hydration is forgiving of
-text mismatches: it trusts the client output and updates the DOM, so
-the page renders correctly and the editor's parser sees the wrapped
-strings. The warnings are noise, not failure. They only appear when
-`?incontext=true` is active — normal page loads have no mismatch.
+came from. The handler covers two shapes:
 
-### `locize@4.0.24` SSR + popup-hydration safety
+- **Plain string** (what `t('key')` produces) — wrap the string once.
+- **VNode array** (what `<i18n-t keypath="..." scope="global">` produces
+  with slot interpolation, because vue-i18n's internal `normalize()`
+  converts every string segment to a Vue Text VNode before
+  `postTranslation` runs) — identify the first and last text VNodes and
+  rebuild them via `h(Text, null, startMarker + children)` /
+  `h(Text, null, children + endMarker)`, leaving slot VNodes untouched.
+  The locize parser's existing multi-text-node merge logic then stitches
+  the pieces back together for the parent element.
 
-Two recent fixes in the `locize` package are relevant here even though
-Nuxt doesn't use React's `hydrateRoot(document, ...)` pattern:
+Wrapping only happens client-side, and only when `?incontext=true` is
+active. The SSR pass renders unwrapped strings, so under `?incontext=true`
+the dev console logs **`[Vue warn] Hydration text content mismatch`** for
+every translated string. Vue's hydration is forgiving of text mismatches:
+it trusts the client output and updates the DOM, so the page renders
+correctly and the editor's parser sees the wrapped strings. The warnings
+are noise, not failure. Normal page loads (without `?incontext=true`)
+have no mismatch.
+
+### `locize@4.1.0` SSR + parser robustness
+
+The integration relies on three fixes in the `locize` package:
 
 - **4.0.23** fixed `isInIframe` detection in Node 20+ SSR builds. Without
-  it, the editor would have thought the SSR pass was rendering inside
-  the Locize editor iframe and tried to attach editor listeners during
-  the SSR render. See the
-  [changelog](https://github.com/locize/locize/blob/master/CHANGELOG.md).
+  it, the editor would think the SSR pass was rendering inside the
+  Locize editor iframe and try to attach editor listeners during SSR.
 - **4.0.24** moved the popup append target from `document.body` to
   `document.documentElement` and added a bounded resurrection observer.
   Not strictly needed for Nuxt (Vue's hydration doesn't sweep `<body>`
-  the way React's `clearContainerSparingly` does), but the resurrection
-  observer is harmless and the `<html>` placement makes the popup
-  resilient to any future framework that takes over `<body>`.
+  the way React's `clearContainerSparingly` does), but the `<html>`
+  placement makes the popup resilient to any framework that takes over
+  `<body>`.
+- **4.1.0** shipped `getVueI18nImplementation` (used by this example) plus
+  a parser robustness fix: text nodes that contain a full subliminal
+  end marker but don't start with the start marker are now correctly
+  detected. That trip-wire fires whenever a framework's template
+  compiler merges literal text with a `t()` output into a single text
+  node — Vue does this for `→ {{ t('...') }}` patterns. Best practice
+  is still to move literal prefixes into the translation value (RTL
+  reorder-friendly), but the parser now handles both shapes.
+
+See the
+[`locize` changelog](https://github.com/locize/locize/blob/master/CHANGELOG.md)
+for the full details on each release.
 
 ## Production safety
 
-The write-enabled `apiKey` is hardcoded in
-[`i18n/locize.config.ts`](i18n/locize.config.ts) and
-[`nuxt.config.ts`](nuxt.config.ts) only because the demo project is
-intentionally public. For your own project:
+The write-enabled `apiKey` is hardcoded in [`nuxt.config.ts`](nuxt.config.ts)
+only because the demo project is intentionally public. For your own
+project:
 
 ```sh
 # .env (gitignored)
@@ -150,11 +172,20 @@ NUXT_PUBLIC_LOCIZE_VERSION=latest
 NUXT_PUBLIC_LOCIZE_CDN_TYPE=standard
 ```
 
-Nuxt's `runtimeConfig.public.locizeApiKey` will pick the env variable up
-automatically because Nuxt maps `NUXT_PUBLIC_*` env vars to
-`runtimeConfig.public.*` at build time. In production, deploy with an
-**empty** `NUXT_PUBLIC_LOCIZE_API_KEY` so `saveMissing` no-ops
-client-side.
+Nuxt maps `NUXT_PUBLIC_*` env vars to `runtimeConfig.public.*` at build
+time, so the same keys the plugin reads in dev get overridden in
+production. Deploy production with an **empty**
+`NUXT_PUBLIC_LOCIZE_API_KEY` so `saveMissing` no-ops client-side.
+
+## IDE setup
+
+Use the official Vue (Volar) VS Code extension — `Vue.volar`. The
+deprecated **Vetur** extension doesn't pick up the type augmentations
+that `@nuxtjs/i18n` generates in `.nuxt/types/i18n-plugin.d.ts` (which is
+what teaches vue-i18n's `Composer` about `locales`, `setLocale`,
+`defaultLocale`, etc.), so it falsely flags `Property 'locales' does
+not exist on type 'Composer<...>'` and similar errors that `nuxt
+typecheck` correctly accepts.
 
 ## Scripts
 
@@ -164,7 +195,7 @@ client-side.
 | `npm run build` | Production build into `.output/` |
 | `npm run preview` | Run the production build via `node .output/server/index.mjs` |
 | `npm run generate` | Static-site generation into `.output/public/` |
-| `npm run typecheck` | `nuxt typegen && tsc --noEmit` |
+| `npm run typecheck` | `nuxt typecheck` (uses `vue-tsc` under the hood) |
 | `npm run downloadLocales` | `locize download` — pull translations into `i18n/locales/` |
 | `npm run syncLocales` | `locize sync` — two-way sync (dry-run by default) |
 
@@ -184,7 +215,6 @@ locize-nuxt-example/
 │       └── locize-runtime.ts — shared mutable runtime state for the i18n config handlers
 └── i18n/
     ├── i18n.config.ts       — vue-i18n options (missing + postTranslation handlers)
-    ├── locize.config.ts     — Locize credentials (projectId, apiKey, etc.)
     └── locales/
         ├── en.ts            — defineI18nLocale wrapper assembling en/*.json
         ├── de.ts            — same, for de/*.json
@@ -198,12 +228,19 @@ locize-nuxt-example/
 { cwd: layer.i18nDir })` in `@nuxtjs/i18n/dist/module.mjs`. A root-level
 `i18n.config.ts` is silently not loaded.
 
-**Why no `defineI18nConfig(...)` macro wrapper?** Nuxt I18n's
-module post-processes any file containing the macro identifier with a
-greedy regex (`DEFINE_I18N_FN_RE`) that has been observed to corrupt
-file output when comments or string literals also contain the macro
-name. Plain `export default function () { ... }` works just as well
-and bypasses the macro entirely.
+**Why no `defineI18nConfig(...)` macro wrapper?** Nuxt I18n's module
+post-processes any file containing the macro identifier with a greedy
+regex (`DEFINE_I18N_FN_RE`) that has been observed to corrupt file
+output when comments or string literals also contain the macro name.
+Plain `export default function () { ... }` works just as well and
+bypasses the macro entirely.
+
+**Why is there a `locize-runtime.ts` bridge?** `i18n/i18n.config.ts`
+runs at vue-i18n init time (so its handlers are on the composer from
+the first `t()` call) but has no access to `useRuntimeConfig()`. The
+client plugin DOES have access — it populates the shared
+`locizeRuntime` module-state once at startup, and the handlers read
+from it on each call.
 
 ## Related
 
