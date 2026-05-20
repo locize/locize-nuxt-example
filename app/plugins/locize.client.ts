@@ -50,6 +50,22 @@ export default defineNuxtPlugin((nuxtApp) => {
   // `nuxtApp.$i18n` IS the global composer.
   const i18n = (nuxtApp.$i18n as any)
 
+  // Force a re-render so vue-i18n re-evaluates every cached t() output
+  // against the now-populated `locizeRuntime`. Without this, the
+  // missing/postTranslation handlers fired once during hydration (with
+  // empty runtime, so they correctly bailed) and never run again — Vue
+  // has nothing to invalidate. Re-assigning the locale messages object
+  // nudges reactivity into a full re-pass.
+  //
+  // Done outside the `?incontext` gate below because saveMissing wants
+  // it too: without a re-render, missing keys discovered during
+  // hydration never get POSTed to Locize.
+  const forceRerender = () => {
+    const cur = i18n.locale.value
+    i18n.setLocaleMessage(cur, { ...(i18n.getLocaleMessage(cur) || {}) })
+  }
+  forceRerender()
+
   // ─── (2) InContext editor — only when active ──────────────────────
   if (!locizeRuntime.isInContext) return
 
