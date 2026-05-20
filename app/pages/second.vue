@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const { t } = useI18n()
+// See app.vue / pages/index.vue for why we use the global scope here.
+const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <template>

@@ -1,5 +1,11 @@
 <script setup lang="ts">
-const { t, locale, locales, setLocale } = useI18n()
+// Use the global composer so t() goes through the same instance that
+// the `app/plugins/locize.client.ts` plugin attaches `missing` +
+// `postTranslation` to. In `legacy: false` mode, a plain `useI18n()`
+// returns a per-component scoped composer that does NOT inherit those
+// hooks from global — which would otherwise break saveMissing and the
+// InContext editor's segment detection.
+const { t, locale, locales, setLocale } = useI18n({ useScope: 'global' })
 
 const availableLocales = computed(() =>
   (locales.value as { code: string; name?: string }[]).filter(
@@ -13,6 +19,7 @@ const availableLocales = computed(() =>
     style="font-family: system-ui, sans-serif; padding: 2rem; max-width: 720px; margin: 0 auto;"
   >
     <h1>{{ t('index.title') }}</h1>
+    <h2>{{t('index.new.untranslated', 'some new key')}}</h2>
     <p>
       <i18n-t keypath="index.description.part1">
         <template #file>

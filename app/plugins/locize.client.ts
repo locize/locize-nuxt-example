@@ -39,6 +39,17 @@ export default defineNuxtPlugin((nuxtApp) => {
   // composition-API mode (which we use — `legacy: false` in i18n.config.ts).
   const i18n = (nuxtApp.$i18n as any)
 
+  // Trigger a vue-i18n re-render by re-assigning the current locale's
+  // messages object back to itself. This nudges Vue's reactivity into
+  // re-evaluating every t() output — necessary because vue-i18n
+  // memoises t() results, so handlers set *after* the initial
+  // hydration render (like the ones we're about to attach) only kick
+  // in when something else triggers a re-render.
+  const triggerRerender = () => {
+    const cur = i18n.locale.value
+    i18n.setLocaleMessage(cur, { ...(i18n.getLocaleMessage(cur) || {}) })
+  }
+
   // ─── saveMissing ──────────────────────────────────────────────────
   // Wire the missing handler on the vue-i18n composer so any t() call
   // that hits a missing key gets POSTed to Locize. The composer's `missing`
@@ -64,6 +75,10 @@ export default defineNuxtPlugin((nuxtApp) => {
         body: JSON.stringify({ [actualKey]: actualKey }),
       }).catch(() => { pending.delete(dedupeKey) })
     }
+    // Re-evaluate every t() so cached outputs that should have triggered
+    // `missing` during hydration get a second chance now that the
+    // handler is wired up.
+    triggerRerender()
   }
 
   // ─── InContext editor ─────────────────────────────────────────────
@@ -139,15 +154,17 @@ export default defineNuxtPlugin((nuxtApp) => {
         if (typeof orig === 'function') return orig(locale, key, vm, values)
       }
     },
-    triggerRerender: () => {
-      // Vue-i18n's mergeLocaleMessage triggers reactivity for direct
-      // observers; re-setting the locale messages object as a whole forces
-      // a fresh reactive update for any component that may have memoised
-      // the previous shape.
-      const cur = i18n.locale.value
-      i18n.setLocaleMessage(cur, { ...(i18n.getLocaleMessage(cur) || {}) })
-    },
+    triggerRerender,
   }
+
+  // Force a re-render BEFORE starting the editor's DOM observer. The
+  // initial hydration rendered t() outputs without subliminal markers
+  // (we hadn't set postTranslation yet). Re-evaluating now writes the
+  // wrapped strings into the DOM, which is what the editor's
+  // MutationObserver-backed parser will then see — populating the
+  // segments list in the popup. Without this kick, the popup mounts
+  // empty and no DOM changes ever happen to trigger the parser.
+  triggerRerender()
 
   startStandalone({ implementation: impl, show: true })
 })
