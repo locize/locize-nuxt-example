@@ -50,8 +50,33 @@ Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.1.0
 
 ## How the Locize integration works
 
-Nuxt's Universal Mode runs the same Vue tree on the server (Nitro) and
-on the client. We populate translations from **two sources**:
+**Translations are bundled at build time, not fetched at runtime.**
+`locize-cli` pulls the latest published JSON from the Locize CDN into
+`i18n/locales/{en,de}/*.json` once (via `npm run downloadLocales`,
+typically wired into a `prebuild` step). `@nuxtjs/i18n`'s lazy-load
+then reads those bundled JSON files on both the server (Nitro SSR)
+and the client — same files, one source of truth. A "published a new
+translation → users see it" round trip therefore requires re-running
+`downloadLocales` and redeploying; this is by design here, and keeps
+the runtime serverless-friendly (no per-request CDN hop from Nitro,
+no extra fetch on the client beyond the locale's own lazy chunk).
+
+The two runtime touchpoints with Locize layered on top of that:
+
+- **`saveMissing`** pushes any newly-referenced key from the app's
+  `t()` calls back to the Locize project — write-only, doesn't fetch
+  translations.
+- **InContext editor** (`?incontext=true`) opens the editor as an
+  iframe; translators can edit live, but their saves land in Locize
+  and only show up in the bundled translations after the next
+  `downloadLocales` + redeploy.
+
+> If you'd rather have client-side live-fetch of fresh translations
+> (publish in Locize → next page view picks it up, no redeploy), see
+> the [`locize-react-router-example`](https://github.com/locize/locize-react-router-example)
+> for the shape with `i18next-locize-backend`. That requires moving
+> from `@nuxtjs/i18n` / vue-i18n to i18next + i18next-vue, since
+> vue-i18n doesn't have a comparable runtime-backend hook today.
 
 ### Build time — `locize-cli` → local JSON
 
@@ -76,16 +101,20 @@ JSON tree, and `t('foo.bar')` is a nested-key lookup. To preserve the
 namespace structure round-tripping through Locize, each `.ts` wrapper
 assembles the per-namespace JSON imports under the namespace name.
 
-### Run time — `saveMissing` from client to Locize
+### Run time — `saveMissing` (client → Locize, write-only)
 
 [`i18n/i18n.config.ts`](i18n/i18n.config.ts) registers a `missing` handler
 on the vue-i18n global composer at vue-i18n init time. When
 `t('any.unknown.key')` is referenced and the key doesn't exist in the
 loaded JSON, the handler POSTs to
 `https://api.lite.locize.app/missing/<projectId>/<version>/<lng>/<ns>`
-with the dev-only apiKey, so the key appears in the Locize UI immediately.
-**Only runs on the client and only when the runtime flag is set by
-[`app/plugins/locize.client.ts`](app/plugins/locize.client.ts)** —
+with the dev-only apiKey. The key appears in the Locize UI immediately;
+translators can fill it in there. **No translation is fetched back at
+runtime** — the new value lands in the app's bundled translations only
+after the next `downloadLocales` + build cycle.
+
+The handler **only runs on the client and only when the runtime flag is
+set by [`app/plugins/locize.client.ts`](app/plugins/locize.client.ts)** —
 which gates it on `import.meta.dev && !!apiKey`. Production builds with
 an empty `NUXT_PUBLIC_LOCIZE_API_KEY` no-op.
 
