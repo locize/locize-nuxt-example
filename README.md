@@ -61,11 +61,17 @@ translation → users see it" round trip therefore requires re-running
 the runtime serverless-friendly (no per-request CDN hop from Nitro,
 no extra fetch on the client beyond the locale's own lazy chunk).
 
-The two runtime touchpoints with Locize layered on top of that:
+Two **optional** runtime touchpoints with Locize are layered on top:
 
-- **`saveMissing`** pushes any newly-referenced key from the app's
-  `t()` calls back to the Locize project — write-only, doesn't fetch
-  translations.
+- **`saveMissing`** (optional) pushes any newly-referenced key from
+  the app's `t()` calls back to the Locize project at runtime —
+  write-only, doesn't fetch translations. Convenient during dev so
+  developers don't have to remember to add new keys manually, but
+  you can absolutely skip this and only ever sync up via
+  `npm run syncLocales` (the locize-cli pushes any keys present in
+  local JSON that aren't yet in Locize). Two ways into the same
+  outcome: pick whichever fits your workflow / CI policy / comfort
+  with a write-enabled dev apiKey.
 - **InContext editor** (`?incontext=true`) opens the editor as an
   iframe; translators can edit live, but their saves land in Locize
   and only show up in the bundled translations after the next
@@ -101,7 +107,7 @@ JSON tree, and `t('foo.bar')` is a nested-key lookup. To preserve the
 namespace structure round-tripping through Locize, each `.ts` wrapper
 assembles the per-namespace JSON imports under the namespace name.
 
-### Run time — `saveMissing` (client → Locize, write-only)
+### Run time — `saveMissing` (optional; client → Locize, write-only)
 
 [`i18n/i18n.config.ts`](i18n/i18n.config.ts) registers a `missing` handler
 on the vue-i18n global composer at vue-i18n init time. When
@@ -117,6 +123,21 @@ The handler **only runs on the client and only when the runtime flag is
 set by [`app/plugins/locize.client.ts`](app/plugins/locize.client.ts)** —
 which gates it on `import.meta.dev && !!apiKey`. Production builds with
 an empty `NUXT_PUBLIC_LOCIZE_API_KEY` no-op.
+
+**`saveMissing` is optional.** If you'd rather not ship a write-enabled
+apiKey in your dev bundle (or you'd rather keep the dev console quiet),
+skip it entirely and use one of these instead:
+
+- `npm run syncLocales` (drop the `--dry=true` flag): `locize-cli` reads
+  your local `i18n/locales/{lng}/{ns}.json` and uploads any keys not
+  yet in Locize. Manual or CI-triggered; no write-key in the browser.
+- Static extraction via [`i18next-cli`](https://github.com/i18next/i18next-cli)
+  or similar — scans your source code, writes new keys into the local
+  JSON files, then sync up as above.
+
+To disable `saveMissing` in this example, delete the handler from
+`i18n/i18n.config.ts` (or just remove the `apiKey` from
+`nuxt.config.ts`'s `runtimeConfig.public` so the handler no-ops).
 
 ### Run time — InContext editor (`?incontext=true`)
 
