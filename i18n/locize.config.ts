@@ -13,13 +13,17 @@ export const locizeVersion = 'latest'
 
 // 'standard' → api.lite.locize.app (BunnyCDN, free, default for new projects)
 // 'pro'      → api.locize.app (CloudFront, paid, supports private downloads)
-export const locizeCdnType: 'standard' | 'pro' = 'standard'
+export type LocizeCdnType = 'standard' | 'pro'
+export const locizeCdnType: LocizeCdnType = 'standard'
 
 // Derived CDN host for runtime client-side fetches and the InContext editor
 // wiring. Locize-cli reads the same `cdnType` via its `--cdn-type` flag in
 // `package.json` scripts.
-export const locizeHost =
-  locizeCdnType === 'pro' ? 'https://api.locize.app' : 'https://api.lite.locize.app'
+const LOCIZE_CDN_HOSTS: Record<LocizeCdnType, string> = {
+  standard: 'https://api.lite.locize.app',
+  pro: 'https://api.locize.app',
+}
+export const locizeHost = LOCIZE_CDN_HOSTS[locizeCdnType]
 
 export const locizeReferenceLng = 'en'
 

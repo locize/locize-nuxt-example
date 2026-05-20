@@ -21,7 +21,7 @@ import { locizeRuntime } from '../app/utils/locize-runtime'
 
 const pendingMissing = new Set()
 
-function handleMissing (locale, key) {
+function handleMissing (locale: string, key: string) {
   if (!import.meta.client) return
   if (!locizeRuntime.saveMissing || !locizeRuntime.apiKey) return
 
@@ -62,7 +62,7 @@ function handleMissing (locale, key) {
 // in normal text, so the split is unambiguous.
 const MARKER_SENTINEL = '￼'
 
-function handlePostTranslation (translated, key) {
+function handlePostTranslation (translated: unknown, key: string): unknown {
   if (!import.meta.client) return translated
   if (!locizeRuntime.isInContext) return translated
 
@@ -106,7 +106,12 @@ function handlePostTranslation (translated, key) {
     try {
       const sample = wrap(MARKER_SENTINEL, meta)
       const parts = sample.split(MARKER_SENTINEL)
-      if (parts.length !== 2) return translated
+      // Guard both length and explicit string presence to satisfy
+      // noUncheckedIndexedAccess — `parts[0]` would otherwise be typed
+      // as `string | undefined` and TS won't let us assign to startMarker.
+      if (parts.length !== 2 || typeof parts[0] !== 'string' || typeof parts[1] !== 'string') {
+        return translated
+      }
       startMarker = parts[0]
       endMarker = parts[1]
     } catch (_) {

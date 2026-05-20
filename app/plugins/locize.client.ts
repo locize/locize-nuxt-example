@@ -86,7 +86,13 @@ export default defineNuxtPlugin((nuxtApp) => {
   // outputs are wrapped with subliminal markers by the postTranslation
   // hook in `i18n.config.ts`. The editor's DOM observer will then pick
   // them up on the initial parse + subsequent mutation passes.
-  impl.triggerRerender()
+  //
+  // Optional chaining because the `Implementation` interface in
+  // `locize/index.d.ts` marks every method as optional — the runtime
+  // path in `process.js` guards each call with `?.` itself, so a
+  // partial implementation is legal. We supply all methods via
+  // `getVueI18nImplementation`, so this is always safe in practice.
+  impl.triggerRerender?.()
 
   startStandalone({ implementation: impl, show: true })
 })
