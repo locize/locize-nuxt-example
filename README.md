@@ -109,10 +109,14 @@ output with the
 [`i18next-subliminal`](https://github.com/locize/i18next-subliminal)
 invisible-marker post-processor (re-exported from the locize package as
 `wrap()`), so the editor can identify which key a clicked DOM string
-came from. Like the React Router v7 example, wrapping happens
-client-side only — Vue's hydration is more forgiving than React's about
-text mismatches, so the worst case is a console warning rather than a
-hydration-recovery sweep.
+came from. Wrapping happens client-side only — the marker hint isn't
+visible to the SSR pass, so when `?incontext=true` is set you'll see
+**`[Vue warn] Hydration text content mismatch`** entries in the dev
+console for every translated string. Vue's hydration is forgiving of
+text mismatches: it trusts the client output and updates the DOM, so
+the page renders correctly and the editor's parser sees the wrapped
+strings. The warnings are noise, not failure. They only appear when
+`?incontext=true` is active — normal page loads have no mismatch.
 
 ### `locize@4.0.24` SSR + popup-hydration safety
 
@@ -168,16 +172,18 @@ client-side.
 
 ```
 locize-nuxt-example/
-├── i18n.config.ts           — vue-i18n options consumed by @nuxtjs/i18n
 ├── nuxt.config.ts           — @nuxtjs/i18n module + runtimeConfig.public.locize*
 ├── app/
 │   ├── app.vue              — root component, drives <title> + <html lang>
 │   ├── pages/
 │   │   ├── index.vue        — main page with language switcher
 │   │   └── second.vue       — second page (route /second)
-│   └── plugins/
-│       └── locize.client.ts — saveMissing handler + InContext editor init
+│   ├── plugins/
+│   │   └── locize.client.ts — populates locize runtime state + InContext editor init
+│   └── utils/
+│       └── locize-runtime.ts — shared mutable runtime state for the i18n config handlers
 └── i18n/
+    ├── i18n.config.ts       — vue-i18n options (missing + postTranslation handlers)
     ├── locize.config.ts     — Locize credentials (projectId, apiKey, etc.)
     └── locales/
         ├── en.ts            — defineI18nLocale wrapper assembling en/*.json
@@ -185,6 +191,19 @@ locize-nuxt-example/
         ├── en/{common,index,second}.json
         └── de/{common,index,second}.json
 ```
+
+**Why `i18n/i18n.config.ts` and not `i18n.config.ts` at root?** Nuxt I18n
+10.x resolves the vue-i18n config file relative to `layer.i18nDir` (the
+`i18n/` directory) — see `findPath(layer.i18n.vueI18n || "i18n.config",
+{ cwd: layer.i18nDir })` in `@nuxtjs/i18n/dist/module.mjs`. A root-level
+`i18n.config.ts` is silently not loaded.
+
+**Why no `defineI18nConfig(...)` macro wrapper?** Nuxt I18n's
+module post-processes any file containing the macro identifier with a
+greedy regex (`DEFINE_I18N_FN_RE`) that has been observed to corrupt
+file output when comments or string literals also contain the macro
+name. Plain `export default function () { ... }` works just as well
+and bypasses the macro entirely.
 
 ## Related
 

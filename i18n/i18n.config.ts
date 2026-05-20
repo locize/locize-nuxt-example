@@ -21,14 +21,6 @@ import { locizeRuntime } from '../app/utils/locize-runtime'
 const pendingMissing = new Set()
 
 function handleMissing (locale, key) {
-  // eslint-disable-next-line no-console
-  console.log('[locize][missing handler] fired', {
-    locale,
-    key,
-    isClient: import.meta.client,
-    saveMissing: locizeRuntime.saveMissing,
-    hasApiKey: !!locizeRuntime.apiKey,
-  })
   if (!import.meta.client) return
   if (!locizeRuntime.saveMissing || !locizeRuntime.apiKey) return
 
@@ -48,6 +40,19 @@ function handleMissing (locale, key) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ [actualKey]: actualKey }),
+  }).then((res) => {
+    // Locize returns 412 "Unnecessary Request: Nothing was missing!"
+    // when the key was already pushed in a previous session (e.g. by
+    // a prior `locize sync` or another tab). That's expected and not
+    // an error — swallow it silently. Other non-2xx responses log
+    // once so misconfiguration is visible.
+    if (!res.ok && res.status !== 412 && import.meta.dev) {
+      // eslint-disable-next-line no-console
+      console.warn('[locize] saveMissing POST returned', res.status, key)
+    }
+  }).catch(() => {
+    /* network errors are a swallow — translator will see the key
+     * appear on the next dev-server lifecycle anyway. */
   }).finally(() => pendingMissing.delete(dedupe))
 }
 
@@ -70,8 +75,6 @@ function handlePostTranslation (translated, key) {
 // at top of file. A plain default-export function works just as well;
 // the module calls it at init time to read the config.
 export default function () {
-  // eslint-disable-next-line no-console
-  console.log('[locize][i18n.config.ts] loaded; registering missing + postTranslation handlers')
   return {
     legacy: false,
     fallbackLocale: 'en',
