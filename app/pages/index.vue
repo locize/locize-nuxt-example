@@ -21,7 +21,7 @@ const availableLocales = computed(() =>
     <h1>{{ t('index.title') }}</h1>
     <h2>{{t('index.new.untranslated', 'some new key')}}</h2>
     <p>
-      <i18n-t keypath="index.description.part1">
+      <i18n-t keypath="index.description.part1" scope="global">
         <template #file>
           <code>app/pages/index.vue</code>
         </template>
