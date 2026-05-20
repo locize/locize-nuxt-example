@@ -78,7 +78,15 @@ export default defineNuxtPlugin((nuxtApp) => {
   const originalPostTranslation = i18n.postTranslation
   i18n.postTranslation = (translated: any, key: string) => {
     if (typeof translated === 'string') {
-      try { return wrap(translated, { key }) } catch { /* swallow */ }
+      // Split the dotted key into namespace + actual key so the editor's
+      // selectKey handler can resolve clicks back to the right
+      // namespace + entry. First segment is treated as the namespace.
+      const dot = key.indexOf('.')
+      const ns = dot >= 0 ? key.slice(0, dot) : 'common'
+      const actualKey = dot >= 0 ? key.slice(dot + 1) : key
+      try {
+        return wrap(translated, { key: actualKey, ns, lng: i18n.locale.value })
+      } catch { /* swallow */ }
     }
     return typeof originalPostTranslation === 'function'
       ? originalPostTranslation(translated, key)
