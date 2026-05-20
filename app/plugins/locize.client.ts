@@ -1,4 +1,5 @@
-import { startStandalone } from 'locize'
+import { watch } from 'vue'
+import { startStandalone, getVueI18nImplementation } from 'locize'
 import { locizeRuntime } from '~/utils/locize-runtime'
 
 // Client-only plugin. Two jobs, in order:
@@ -11,12 +12,10 @@ import { locizeRuntime } from '~/utils/locize-runtime'
 //
 // 2. **Start the InContext editor** when the page is loaded with
 //    `?incontext=true` (or rendered inside the Locize editor iframe).
-//    `startStandalone()` mounts the popup + sets up the postMessage
-//    handshake with the editor iframe; it expects a framework-specific
-//    "implementation" surface (get/set resources, get current language,
-//    bind language-change events, etc.) since the locize package ships
-//    an i18next implementation but not a vue-i18n one. We provide that
-//    surface inline by adapting the vue-i18n composer API.
+//    The vue-i18n implementation surface that `startStandalone()`
+//    needs comes from `getVueI18nImplementation()` — ships in the
+//    `locize` package alongside the i18next one, so we don't have to
+//    inline a vue-i18n composer adapter here.
 
 export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
@@ -45,9 +44,8 @@ export default defineNuxtPlugin((nuxtApp) => {
   // have a write-enabled key.
   locizeRuntime.saveMissing = !isProduction && !!apiKey
 
-  // Reach the global vue-i18n composer for the InContext editor's
-  // implementation surface. With `legacy: false` + @nuxtjs/i18n 10.x,
-  // `nuxtApp.$i18n` IS the global composer.
+  // Reach the global vue-i18n composer. With `legacy: false` +
+  // @nuxtjs/i18n 10.x, `nuxtApp.$i18n` IS the global composer.
   const i18n = (nuxtApp.$i18n as any)
 
   // Force a re-render so vue-i18n re-evaluates every cached t() output
@@ -69,63 +67,25 @@ export default defineNuxtPlugin((nuxtApp) => {
   // ─── (2) InContext editor — only when active ──────────────────────
   if (!locizeRuntime.isInContext) return
 
-  // The locize package's `start()` expects a framework-specific impl
-  // surface. Mirrors `src/implementations/i18nextImplementation.js`
-  // from the locize package, ported to vue-i18n's composer API.
-  const impl = {
-    getResource: (lng: string, ns: string, key: string) => {
-      const msgs = (i18n.getLocaleMessage(lng) || {}) as Record<string, any>
-      return msgs[ns]?.[key]
-    },
-    setResource: (lng: string, ns: string, key: string, value: any) => {
-      i18n.mergeLocaleMessage(lng, { [ns]: { [key]: value } })
-    },
-    getResourceBundle: (lng: string, ns: string, cb: (data: any) => void) => {
-      const msgs = (i18n.getLocaleMessage(lng) || {}) as Record<string, any>
-      cb(msgs[ns] || {})
-    },
-    getDefaultNS: () => 'common',
-    getLng: () => i18n.locale.value,
-    getSourceLng: () => 'en',
-    getLocizeDetails: () => ({
-      projectId,
-      version,
-      backendName: 'locize-cli',
-      sourceLng: 'en',
-      i18nFormat: 'vuei18n',
-      i18nFramework: 'vue-i18n',
-      defaultNS: 'common',
-      ns: ['common', 'index', 'second'],
-      targetLngs: ((i18n.availableLocales as string[]) || []).filter(
-        (l) => l !== 'en',
-      ),
-    }),
-    bindLanguageChange: (cb: (lng: string) => void) => {
-      watch(() => i18n.locale.value, (lng) => cb(lng as string))
-    },
-    bindMissingKeyHandler: (
-      _cb: (lng: string, ns: string, key: string, value: any) => void,
-    ) => {
-      // The actual missing-key handling lives in `i18n.config.ts`, which
-      // POSTs to Locize directly. We deliberately don't forward those
-      // events into the editor here — the round trip via the Locize
-      // backend is the canonical path. Left as a stub so the editor's
-      // wiring doesn't NPE on a missing handler.
-    },
-    triggerRerender: () => {
-      // Re-assign the current locale messages object to itself to nudge
-      // Vue's reactivity into re-evaluating every t() call. Used by the
-      // editor after a save so the page picks up the edited string.
-      const cur = i18n.locale.value
-      i18n.setLocaleMessage(cur, { ...(i18n.getLocaleMessage(cur) || {}) })
-    },
-  }
+  const impl = getVueI18nImplementation(i18n, {
+    projectId,
+    version,
+    sourceLng: 'en',
+    defaultNS: 'common',
+    ns: ['common', 'index', 'second'],
+    targetLngs: ((i18n.availableLocales as string[]) || []),
+    backendName: 'locize-cli',
+    // Vue's `watch` enables the editor to observe locale changes so it
+    // can re-fetch the right translations on language switch. Passing
+    // it keeps the locize package framework-agnostic — without it,
+    // bindLanguageChange is a no-op.
+    watch,
+  })
 
-  // Force one re-render BEFORE starting the editor, so vue-i18n
-  // re-evaluates every t() output under the now-populated runtime
-  // (postTranslation will wrap, missing will POST). Then start the
-  // editor — its DOM observer picks up the wrapped strings as it runs
-  // the initial parse + subsequent MutationObserver passes.
+  // Force one re-render BEFORE starting the editor so vue-i18n's t()
+  // outputs are wrapped with subliminal markers by the postTranslation
+  // hook in `i18n.config.ts`. The editor's DOM observer will then pick
+  // them up on the initial parse + subsequent mutation passes.
   impl.triggerRerender()
 
   startStandalone({ implementation: impl, show: true })

@@ -5,6 +5,6 @@
     "part2": "Translations are bundled from local JSON at build time, and InContext editing is available via the locize plugin."
   },
   "goto": {
-    "second": "Go to the second page"
+    "second": "→ Go to the second page"
   }
 }

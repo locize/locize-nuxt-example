@@ -5,6 +5,6 @@
     "part2": "Die Übersetzungen werden zur Build-Zeit aus lokalem JSON gebündelt, und InContext-Bearbeitung ist über das locize-Plugin verfügbar."
   },
   "goto": {
-    "second": "Zur zweiten Seite"
+    "second": "→ Zur zweiten Seite"
   }
 }

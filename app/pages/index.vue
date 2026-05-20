@@ -19,7 +19,6 @@ const availableLocales = computed(() =>
     style="font-family: system-ui, sans-serif; padding: 2rem; max-width: 720px; margin: 0 auto;"
   >
     <h1>{{ t('index.title') }}</h1>
-    <h2>{{t('index.new.untranslated', 'some new key')}}</h2>
     <p>
       <i18n-t keypath="index.description.part1" scope="global">
         <template #file>
@@ -46,7 +45,16 @@ const availableLocales = computed(() =>
     </nav>
 
     <p style="margin-top: 2rem;">
-      <NuxtLink to="/second">→ {{ t('index.goto.second') }}</NuxtLink>
+      <!-- Don't compose translations with literal text in the template
+           (e.g. "→ {{ t('...') }}"). Vue's template compiler merges
+           literal + dynamic siblings into a single DOM text node, which
+           means the subliminal start marker no longer sits at the
+           beginning of the text — the InContext editor's parser uses
+           `text.startsWith(startMarker)` to detect translation segments
+           and silently skips the merged node. Putting the arrow inside
+           the translation value also lets translators reorder it for
+           RTL languages. -->
+      <NuxtLink to="/second">{{ t('index.goto.second') }}</NuxtLink>
     </p>
   </main>
 </template>

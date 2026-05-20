@@ -15,6 +15,7 @@
 // comment-text match yanks the closing paren of unrelated `console.log`
 // / `fetch(...)` calls into the regex's capture group and corrupts the
 // transformed output. Symptom: build error "Expected ')' but found ';'".
+import { h, Text } from 'vue'
 import { wrap } from 'locize'
 import { locizeRuntime } from '../app/utils/locize-runtime'
 
@@ -56,19 +57,76 @@ function handleMissing (locale, key) {
   }).finally(() => pendingMissing.delete(dedupe))
 }
 
+// Sentinel used to extract start/end markers from a `wrap()` output for
+// the array-input case. U+FFFC (Object Replacement Character) is unused
+// in normal text, so the split is unambiguous.
+const MARKER_SENTINEL = '￼'
+
 function handlePostTranslation (translated, key) {
   if (!import.meta.client) return translated
   if (!locizeRuntime.isInContext) return translated
-  if (typeof translated !== 'string') return translated
+
 
   const dot = key.indexOf('.')
   const ns = dot >= 0 ? key.slice(0, dot) : 'common'
   const actualKey = dot >= 0 ? key.slice(dot + 1) : key
-  try {
-    return wrap(translated, { key: actualKey, ns })
-  } catch (_) {
-    return translated
+  const meta = { key: actualKey, ns }
+
+  // Plain string: wrap the whole thing once.
+  if (typeof translated === 'string') {
+    try { return wrap(translated, meta) } catch (_) { return translated }
   }
+
+  // VNode array — this is what vue-i18n's `<i18n-t>` component path
+  // produces. Important nuance: vue-i18n's internal `normalize()` (see
+  // `node_modules/vue-i18n/dist/vue-i18n.mjs` line 589) converts every
+  // string/number/boolean segment to a Vue Text VNode BEFORE
+  // postTranslation runs. So the array we receive contains ZERO raw
+  // strings — it's all `{__v_isVNode: true, type: Text, children:
+  // "..."}` for text segments and `{__v_isVNode: true, type: '<tag>',
+  // children: [...]}` for slot VNodes.
+  //
+  // We identify text VNodes (`children` is a string) and rebuild the
+  // first + last with markers embedded in their `children`. Fresh
+  // VNodes via `h(Text, null, ...)` rather than mutating the originals
+  // so Vue's render diffing sees a clean change.
+  if (Array.isArray(translated)) {
+    const isTextVNode = (v: any) =>
+      v && v.__v_isVNode && typeof v.children === 'string'
+
+    const firstTextIdx = translated.findIndex(isTextVNode)
+    if (firstTextIdx === -1) return translated
+    let lastTextIdx = firstTextIdx
+    for (let i = translated.length - 1; i >= 0; i--) {
+      if (isTextVNode(translated[i])) { lastTextIdx = i; break }
+    }
+
+    let startMarker: string
+    let endMarker: string
+    try {
+      const sample = wrap(MARKER_SENTINEL, meta)
+      const parts = sample.split(MARKER_SENTINEL)
+      if (parts.length !== 2) return translated
+      startMarker = parts[0]
+      endMarker = parts[1]
+    } catch (_) {
+      return translated
+    }
+
+    const result = translated.slice()
+    if (firstTextIdx === lastTextIdx) {
+      const orig = result[firstTextIdx] as any
+      result[firstTextIdx] = h(Text, null, startMarker + orig.children + endMarker) as any
+    } else {
+      const first = result[firstTextIdx] as any
+      const last = result[lastTextIdx] as any
+      result[firstTextIdx] = h(Text, null, startMarker + first.children) as any
+      result[lastTextIdx] = h(Text, null, last.children + endMarker) as any
+    }
+    return result
+  }
+
+  return translated
 }
 
 // Don't wrap the default export with the Nuxt I18n macro — see warning
