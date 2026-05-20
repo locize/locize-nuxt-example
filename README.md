@@ -8,7 +8,7 @@ runtime `saveMissing` to push new keys back to Locize during dev, and the
 [Locize InContext editor](https://github.com/locize/locize) for translators
 (`?incontext=true`).
 
-Companion blog post: pending — this example ships first.
+Companion blog post: [How to internationalize a Nuxt 4 app with @nuxtjs/i18n and Locize](https://www.locize.com/blog/nuxt-i18n?from=locize-nuxt-example).
 
 Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.1.0
 (ships a vue-i18n implementation alongside the existing i18next one) ·
