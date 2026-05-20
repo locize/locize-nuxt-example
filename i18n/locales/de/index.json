@@ -1,0 +1,10 @@
+{
+  "title": "Nuxt 4 + Nuxt I18n + Locize",
+  "description": {
+    "part1": "Um loszulegen, ändere {file} und speichere, um neu zu laden.",
+    "part2": "Die Übersetzungen werden zur Build-Zeit aus lokalem JSON gebündelt, und InContext-Bearbeitung ist über das locize-Plugin verfügbar."
+  },
+  "goto": {
+    "second": "Zur zweiten Seite"
+  }
+}

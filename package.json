@@ -1,0 +1,32 @@
+{
+  "name": "locize-nuxt-example",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Nuxt 4 + @nuxtjs/i18n + Locize example. Server-side renders use bundled translations (synced via locize-cli at build time); client side adds the Locize InContext editor + saveMissing flow for fresh keys.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "downloadLocales": "locize download --project-id=24717bdc-b48a-4520-a702-88b7f45bcb0a --ver=latest --cdn-type=standard --clean=true --path=./i18n/locales",
+    "syncLocales": "locize sync --project-id=24717bdc-b48a-4520-a702-88b7f45bcb0a --ver=latest --cdn-type=standard --api-key=lz_api_1AQjKuZRaLQlRQGqPEHWruvNtF1dN8F4 --path=./i18n/locales --dry=true"
+  },
+  "dependencies": {
+    "@nuxtjs/i18n": "^10.3.0",
+    "locize": "^4.0.24",
+    "nuxt": "^4.4.6",
+    "vue": "^3.5.34",
+    "vue-i18n": "^11.4.4"
+  },
+  "devDependencies": {
+    "locize-cli": "^12.1.1",
+    "typescript": "^5.9.0"
+  }
+}
