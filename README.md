@@ -10,7 +10,7 @@ runtime `saveMissing` to push new keys back to Locize during dev, and the
 
 Companion blog post: [How to internationalize a Nuxt 4 app with @nuxtjs/i18n and Locize](https://www.locize.com/blog/nuxt-i18n?from=locize-nuxt-example).
 
-Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.1.0
+Stack: Nuxt 4.4 · `@nuxtjs/i18n` 10.3 · vue-i18n 11.4 · `locize` 4.7.0
 (ships a vue-i18n implementation alongside the existing i18next one) ·
 `locize-cli` 12.1 · Vue 3.5 · TypeScript 5.9.
 
@@ -142,8 +142,9 @@ To disable `saveMissing` in this example, delete the handler from
 ### Run time — InContext editor (`?incontext=true`)
 
 The plugin starts the [`locize`](https://github.com/locize/locize)
-InContext editor when the URL contains `?incontext=true` (or when the
-page itself is being rendered inside the Locize editor iframe). The
+InContext editor when the URL contains `?incontext=true`, or did earlier
+in the same browser tab (`?incontext=false` switches it off), or when the
+page itself is being rendered inside the Locize editor iframe. The
 editor pops up in the bottom-right corner; translators click on any
 string in the page to open the key in the editor.
 
@@ -179,8 +180,8 @@ the dev console logs **`[Vue warn] Hydration text content mismatch`** for
 every translated string. Vue's hydration is forgiving of text mismatches:
 it trusts the client output and updates the DOM, so the page renders
 correctly and the editor's parser sees the wrapped strings. The warnings
-are noise, not failure. Normal page loads (without `?incontext=true`)
-have no mismatch.
+are noise, not failure. Normal page loads (editor off) have no
+mismatch.
 
 ### `locize@4.1.0` SSR + parser robustness
 

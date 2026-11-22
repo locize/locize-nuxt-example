@@ -1,5 +1,5 @@
 import { watch } from 'vue'
-import { startStandalone, getVueI18nImplementation } from 'locize'
+import { startStandalone, getVueI18nImplementation, isInContextRequested } from 'locize'
 import { locizeRuntime } from '~/utils/locize-runtime'
 
 // Client-only plugin. Two jobs, in order:
@@ -11,7 +11,8 @@ import { locizeRuntime } from '~/utils/locize-runtime'
 //    doing real work on the next render cycle.
 //
 // 2. **Start the InContext editor** when the page is loaded with
-//    `?incontext=true` (or rendered inside the Locize editor iframe).
+//    `?incontext=true`, now or earlier in this browser tab (or rendered
+//    inside the Locize editor iframe).
 //    The vue-i18n implementation surface that `startStandalone()`
 //    needs comes from `getVueI18nImplementation()` — ships in the
 //    `locize` package alongside the i18next one, so we don't have to
@@ -30,8 +31,9 @@ export default defineNuxtPlugin((nuxtApp) => {
   const isInIframe = (() => {
     try { return self !== top } catch { return true }
   })()
-  const showInContext =
-    new URLSearchParams(window.location.search).get('incontext') === 'true'
+  // the check the locize script uses itself: `?incontext=true` in the url now or earlier in this
+  // browser tab, so a full page load keeps the editor; `?incontext=false` switches it off
+  const showInContext = isInContextRequested()
 
   // ─── (1) populate shared runtime state ────────────────────────────
   locizeRuntime.projectId = projectId
