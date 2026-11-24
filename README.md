@@ -144,7 +144,7 @@ To disable `saveMissing` in this example, delete the handler from
 The plugin starts the [`locize`](https://github.com/locize/locize)
 InContext editor when the URL contains `?incontext=true`, or did earlier
 in the same browser tab (`?incontext=false` switches it off), or when the
-page itself is being rendered inside the Locize editor iframe. The
+page runs inside an iframe (the locize script's own rule). The
 editor pops up in the bottom-right corner; translators click on any
 string in the page to open the key in the editor.
 

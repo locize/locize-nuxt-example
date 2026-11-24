@@ -11,8 +11,8 @@ import { locizeRuntime } from '~/utils/locize-runtime'
 //    doing real work on the next render cycle.
 //
 // 2. **Start the InContext editor** when the page is loaded with
-//    `?incontext=true`, now or earlier in this browser tab (or rendered
-//    inside the Locize editor iframe).
+//    `?incontext=true`, now or earlier in this browser tab, or when the
+//    page runs inside an iframe (the locize script's own rule).
 //    The vue-i18n implementation surface that `startStandalone()`
 //    needs comes from `getVueI18nImplementation()` — ships in the
 //    `locize` package alongside the i18next one, so we don't have to
