@@ -16,7 +16,7 @@ export const locizeRuntime = {
   version: 'latest',
   cdnHost: 'https://api.lite.locize.app',
   /** True when the InContext editor is on: `?incontext=true` now or earlier
-   *  in this browser tab, or rendered inside the Locize editor iframe.
+   *  in this browser tab, or when the page runs inside an iframe.
    *  Gates subliminal wrapping. */
   isInContext: false,
   /** Dev-only flag; gates saveMissing POSTs. */

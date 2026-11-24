@@ -188,8 +188,8 @@ mismatch.
 The integration relies on three fixes in the `locize` package:
 
 - **4.0.23** fixed `isInIframe` detection in Node 20+ SSR builds. Without
-  it, the editor would think the SSR pass was rendering inside the
-  Locize editor iframe and try to attach editor listeners during SSR.
+  it, the editor would think the SSR pass was rendering inside an
+  iframe and try to attach editor listeners during SSR.
 - **4.0.24** moved the popup append target from `document.body` to
   `document.documentElement` and added a bounded resurrection observer.
   Not strictly needed for Nuxt (Vue's hydration doesn't sweep `<body>`
